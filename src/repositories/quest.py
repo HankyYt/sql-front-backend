@@ -178,3 +178,34 @@ class QuestRepository:
             )
         )
         return set(result.scalars().all())
+
+    async def is_task_solved(self, user_id: int, quest_id: str, scene_id: str) -> bool:
+        from src.models.quest import QuestTaskSolved
+        result = await self.session.execute(
+            select(QuestTaskSolved).where(
+                and_(
+                    QuestTaskSolved.user_id == user_id,
+                    QuestTaskSolved.quest_id == quest_id,
+                    QuestTaskSolved.scene_id == scene_id,
+                )
+            )
+        )
+        return result.scalars().first() is not None
+
+    async def mark_task_solved(self, user_id: int, quest_id: str, scene_id: str, user_query: str):
+        from src.models.quest import QuestTaskSolved
+        solved = QuestTaskSolved(user_id=user_id, quest_id=quest_id, scene_id=scene_id, user_query=user_query)
+        self.session.add(solved)
+
+    async def get_history(self, user_id: int, quest_id: str):
+        from src.models.quest import QuestTaskSolved
+        result = await self.session.execute(
+            select(QuestTaskSolved).where(
+                and_(
+                    QuestTaskSolved.user_id == user_id,
+                    QuestTaskSolved.quest_id == quest_id,
+                )
+            ).order_by(QuestTaskSolved.created_at)
+        )
+        return result.scalars().all()
+

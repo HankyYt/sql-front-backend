@@ -74,6 +74,9 @@ class TaskAdmin(ModelView, model=Task):
     can_delete = True
 
     async def on_model_change(self, data, model, is_created, request):
+        expected = data.get("expected_result")
+        if isinstance(expected, dict) and expected.get("mode") == "model":
+            return await super().on_model_change(data, model, is_created, request)
         if is_created and data.get("correct_query"):
             async with httpx.AsyncClient() as client:
                 try:

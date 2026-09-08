@@ -1,4 +1,4 @@
-from sqlalchemy import update
+from sqlalchemy import update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.user import User
 
@@ -23,5 +23,5 @@ class ScoringService:
         await self.session.execute(
             update(User)
             .where(User.user_id == user_id)
-            .values(total_score=User.total_score - penalty)
+            .values(total_score=func.greatest(User.total_score - penalty, 0))
         )

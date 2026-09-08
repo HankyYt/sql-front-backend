@@ -117,3 +117,6 @@ class TaskSubmissionResult(BaseModel):
     is_correct: bool
     awarded_achievements: list[AchievementAward]
     current_points: int
+    hint: str = ""
+    columns: Optional[list] = None
+    data: Optional[list] = None

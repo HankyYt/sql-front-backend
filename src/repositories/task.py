@@ -192,23 +192,42 @@ class TaskRepository:
         message = ""
 
         scoring_service = ScoringService(self.session)
+        user_repo = UserRepository(self.session)
+        user = await user_repo.get_user_by_id(user_id)
+        user_progress = await user_repo.get_user_progress_by_id(user_id)
+
         if is_correct:
             if not already_solved:
                 points_earned = self._get_base_points(mission_id)
                 await scoring_service.add_points(user_id, points_earned)
+                await self.add_solved_task(user_id, task_global_id)
+                
+                # Update progress
+                if user_progress:
+                    if mission_id == 0:
+                        user_progress.easy_tasks_solved += 1
+                    elif mission_id == 1:
+                        user_progress.medium_tasks_solved += 1
+                    elif mission_id == 2:
+                        user_progress.hard_tasks_solved += 1
+                        
                 message = f"Правильно! Заработано {points_earned} баллов"
             else:
                 message = "Правильно! За повторное решение баллы не начисляются"
         else:
             if not already_solved:
                 points_penalty = int(self._get_base_points(mission_id) * 0.1)
-                await scoring_service.deduct_points(user_id, points_penalty)
-                message = f"Ответ неверный! Списано {points_penalty} баллов"
+                actual_penalty = min(points_penalty, user.total_score if user else 0)
+                await scoring_service.deduct_points(user_id, actual_penalty)
+                if actual_penalty > 0:
+                    message = f"Ответ неверный! Списано {actual_penalty} баллов"
+                else:
+                    message = "Ответ неверный!"
             else:
                 message = "Ответ неверный! За повторное решение баллы не списываются"
 
         awarded_achievements = []
-        if is_correct and tags:
+        if is_correct and tags and not already_solved:
             achievement_repo = AchievementRepository(self.session)
             awarded_achievements = await achievement_repo.check_and_award_achievements(
                 user_id=user_id, task_tags=tags
@@ -216,21 +235,22 @@ class TaskRepository:
 
         await self.session.commit()
 
-        user_repo = UserRepository(self.session)
-        user_progress = await user_repo.get_user_progress_by_id(user_id)
-
         return {
             "was_solved_before": already_solved,
             "points_earned": points_earned,
             "points_penalty": points_penalty,
             "message": message,
             "awarded_achievements": awarded_achievements,
-            "current_points": user_progress.total_score,
+            "current_points": user.total_score if user else 0,
         }
 
     async def purchase_clue(
         self, user_id: int, task_global_id: int, clue_type: int, cost: int
-    ) -> bool:
+    ) -> tuple[int, int]:
+        already_solved = await self._check_already_solved(user_id, task_global_id)
+        if already_solved:
+            cost = 0
+
         user = await self.session.get(User, user_id)
         if user.total_score < cost:
             raise HTTPException(
@@ -244,7 +264,7 @@ class TaskRepository:
             )
         )
         await self.session.commit()
-        return True
+        return cost, user.total_score
 
     async def clear_purchased_clues(self, user_id: int, task_global_id: int):
         await self.session.execute(

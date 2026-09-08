@@ -22,9 +22,22 @@ from src.schemas.task import (
 from src.utils.analytics import log_user_event
 from src.utils.auth import get_current_user
 from src.utils.sql_executor import SQLExecutor
+from src.utils import catalog_model
 
 router = APIRouter(prefix="/api/missions", tags=["Миссии и задачи"])
 sql_executor = SQLExecutor(settings.GAME_DATABASE_URL)
+
+
+def _reveal_expected(task):
+    """Скрывает реальный ожидаемый результат для модельных задач."""
+    payload = task.expected_result
+    if isinstance(payload, dict) and payload.get("mode") == "model":
+        return {
+            "columns": ["Что проверяется:"],
+            "data": [[payload.get("reveal", "")]],
+            "row_count": 1,
+        }
+    return payload
 
 
 @router.get(
@@ -126,7 +139,7 @@ async def purchase_clue(
             "total_score": current_user.total_score,
             "clue": task.clue,
         }
-    await repo.purchase_clue(
+    actual_cost, new_total = await repo.purchase_clue(
         user_id=current_user.user_id,
         task_global_id=task.task_global_id,
         clue_type=1,
@@ -140,8 +153,8 @@ async def purchase_clue(
         payload={"mission_id": mission_id, "task_id": task_id, "clue_type": 1},
     )
     return {
-        "points_spent": cost,
-        "total_score": current_user.total_score,
+        "points_spent": actual_cost,
+        "total_score": new_total,
         "clue": task.clue,
     }
 
@@ -174,9 +187,9 @@ async def purchase_expected_result(
         return {
             "points_spent": 0,
             "total_score": current_user.total_score,
-            "expected_result": task.expected_result,
+            "expected_result": _reveal_expected(task),
         }
-    await repo.purchase_clue(
+    actual_cost, new_total = await repo.purchase_clue(
         user_id=current_user.user_id,
         task_global_id=task.task_global_id,
         clue_type=2,
@@ -190,9 +203,9 @@ async def purchase_expected_result(
         payload={"mission_id": mission_id, "task_id": task_id, "clue_type": 2},
     )
     return {
-        "points_spent": cost,
-        "total_score": current_user.total_score,
-        "expected_result": task.expected_result,
+        "points_spent": actual_cost,
+        "total_score": new_total,
+        "expected_result": _reveal_expected(task),
     }
 
 
@@ -221,7 +234,12 @@ async def run_sql_query(
             task_id=task.task_global_id,
             payload={"mission_id": mission_id, "task_id": task_id},
         )
-        return await sql_executor.execute_sql(request.sql_query)
+        if (task.expected_result or {}).get("mode") == "model":
+            ok, message = catalog_model.verify(
+                request.sql_query, task.expected_result
+            )
+            return {"columns": ["Результат:"], "data": [[message]], "row_count": 1}
+        return await sql_executor.execute_sql(request.sql_query, allow_star=True)
     except HTTPException as e:
         raise HTTPException(status_code=400, detail=f"Runtime error: {str(e.detail)}")
     except Exception as e:
@@ -245,17 +263,20 @@ async def submit_sql_query(
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
 
-    user_result = await sql_executor.execute_sql(request.sql_query)
     expected_result = task.expected_result
-
     if not expected_result:
         raise HTTPException(
             status_code=404, detail="Для этой задачи еще не добавлен ответ"
         )
 
-    is_correct = user_result["columns"] == expected_result.get(
-        "columns", []
-    ) and user_result["data"] == expected_result.get("data", [])
+    hint = ""
+    user_result = {}
+    if expected_result.get("mode") == "model":
+        is_correct, hint = catalog_model.verify(request.sql_query, expected_result)
+    else:
+        user_result = await sql_executor.execute_sql(request.sql_query)
+        is_correct = user_result.get("columns") == expected_result.get("columns", []) and \
+                     user_result.get("data") == expected_result.get("data", [])
     try:
         result = await repo.check_and_reward_task(
             user_id=current_user.user_id,
@@ -274,12 +295,18 @@ async def submit_sql_query(
                 "is_correct": is_correct,
             },
         )
-        return {**result, "is_correct": is_correct}
+        return {
+            **result, 
+            "is_correct": is_correct,
+            "columns": user_result.get("columns", []),
+            "data": user_result.get("data", []),
+            "hint": hint,
+        }
 
     except IndexError:
         raise HTTPException(
             status_code=400,
-            detail="Некорректный mission_id: должен быть от 0 до 2 включительно",
+            detail="Некорректный mission_id: отсутствует в TASK_POINTS (config.py)",
         )
 
 

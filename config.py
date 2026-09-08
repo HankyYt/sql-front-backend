@@ -6,18 +6,26 @@ from pydantic_settings import BaseSettings
 load_dotenv()
 
 
+def get_env(*names: str):
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return None
+
+
 class Settings(BaseSettings):
-    DATABASE_URL: str = os.getenv("DB_URL")
-    GAME_DATABASE_URL: str = os.getenv("GAME_DATABASE_URL")
-    QUEST_DATABASE_URL: str = os.getenv("QUEST_DATABASE_URL")
-    SECRET_KEY: str = os.getenv("ACCESS_TOKEN_SECRET")
+    DATABASE_URL: str = get_env("DATABASE_URL", "DB_URL")
+    GAME_DATABASE_URL: str = get_env("GAME_DATABASE_URL")
+    QUEST_DATABASE_URL: str = get_env("QUEST_DATABASE_URL")
+    SECRET_KEY: str = get_env("SECRET_KEY", "ACCESS_TOKEN_SECRET")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    TASK_POINTS: list = [100, 300, 500]
-    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME")
-    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD")
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL")
-    BACKEND_URL: str = os.getenv("BACKEND_URL")
+    TASK_POINTS: list = [100, 300, 500, 300, 500]
+    ADMIN_USERNAME: str = get_env("ADMIN_USERNAME")
+    ADMIN_PASSWORD: str = get_env("ADMIN_PASSWORD")
+    FRONTEND_URL: str = get_env("FRONTEND_URL")
+    BACKEND_URL: str = get_env("BACKEND_URL")
 
     class Config:
         env_file = ".env"

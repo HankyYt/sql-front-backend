@@ -153,6 +153,10 @@ class UserRepository:
                 break
         return user_data
 
-    async def get_user_progress_by_id(self, user_id: int) -> User | None:
+    async def get_user_by_id(self, user_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.user_id == user_id))
+        return result.scalars().first()
+
+    async def get_user_progress_by_id(self, user_id: int) -> UserProgress | None:
+        result = await self.session.execute(select(UserProgress).where(UserProgress.user_id == user_id))
         return result.scalars().first()

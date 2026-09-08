@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+restore_backup_if_exists() {
+    local db=$1
+
+    for backup_path in "/backups/$db.sql" "/backups/backups/$db.sql"; do
+        if [ -f "$backup_path" ]; then
+            echo "Restoring $db from SQL backup: $backup_path"
+            psql -U "$POSTGRES_USER" -d "$db" -f "$backup_path"
+            return 0
+        fi
+    done
+}
+
 create_db_with_timescale() {
     local db=$1
     echo "Creating database: $db"
@@ -14,10 +26,7 @@ EOSQL
         CREATE EXTENSION IF NOT EXISTS timescaledb;
 EOSQL
 
-    if [ -f "/backups/$db.sql" ]; then
-        echo "Restoring $db from SQL backup"
-        psql -U "$POSTGRES_USER" -d "$db" -f "/backups/$db.sql"
-    fi
+    restore_backup_if_exists "$db"
     
     echo "Creating analytics tables in $db"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d "$db" <<-EOSQL
@@ -74,10 +83,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
 EOSQL
 
-if [ -f "/backups/game_db.sql" ]; then
-    echo "Restoring game_db from SQL backup"
-    psql -U "$POSTGRES_USER" -d "game_db" -f "/backups/game_db.sql"
-fi 
+restore_backup_if_exists "game_db"
 
 
 echo "Creating quest_db"
@@ -96,7 +102,4 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 
 EOSQL
 
-if [ -f "/backups/quest_db.sql" ]; then
-    echo "Creating quest_db from SQL"
-    psql -U "$POSTGRES_USER" -d "quest_db" -f "/backups/quest_db.sql"
-fi 
+restore_backup_if_exists "quest_db"

@@ -64,7 +64,7 @@ async def get_all_quests(
 @router.get(
     "/{quest_id}/progress",
     summary="Инициализация или продолжение квеста",
-    response_model=QuestProgressResponse,
+    response_model=dict,
 )
 async def get_quest_progress(
     quest_id: str,
@@ -82,12 +82,42 @@ async def get_quest_progress(
         else:
             raise e
 
+    # Вычисление прогресса
+    quest_meta = QuestLoader.get_quest(quest_id)
+    total_scenes = len(quest_meta.get("scenes", {}))
+    # В идеале нужно считать пройденные, но пока так:
+    history = await repo.get_history(current_user.user_id, quest_id)
+    percent = round((len(history) / total_scenes) * 100) if total_scenes > 0 else 0
+
     return {
         "scene_id": scene_data["scene_id"],
         "legend": scene_data["legend"],
         "task": scene_data["task"],
         "has_clue": scene_data["has_clue"],
+        "total_scenes": total_scenes,
+        "completed_scenes": len(history),
+        "percent_completed": percent
     }
+
+
+@router.get(
+    "/{quest_id}/history",
+    summary="Получение истории решений квеста",
+)
+async def get_quest_history(
+    quest_id: str,
+    current_user: User = Depends(get_current_user),
+    repo: QuestRepository = Depends(get_quest_repository),
+):
+    history = await repo.get_history(current_user.user_id, quest_id)
+    result = []
+    for h in history:
+        result.append({
+            "scene_id": h.scene_id,
+            "user_query": h.user_query,
+            "created_at": h.created_at
+        })
+    return {"history": result}
 
 
 @router.post(
@@ -110,7 +140,7 @@ async def run_quest_sql(
             raise HTTPException(
             status_code=403, detail=f"Пока низя"
             )
-        return await sql_executor.execute_sql(request.sql_query)
+        return await sql_executor.execute_sql(request.sql_query, allow_star=True)
     except HTTPException as e:
         raise HTTPException(
             status_code=400, detail=f"Ошибка выполнения: {str(e.detail)}"
@@ -124,7 +154,7 @@ async def run_quest_sql(
 @router.post(
     "/{quest_id}/submit",
     summary="Отправка решения квеста на проверку",
-    response_model=QuestSubmitResponse,
+    response_model=dict,
 )
 async def submit_quest_solution(
     quest_id: str,
@@ -134,12 +164,26 @@ async def submit_quest_solution(
     db: AsyncSession = Depends(get_db),
 ):
     scene = await repo.get_user_current_scene(current_user.user_id, quest_id)
+    scene_id = scene["scene_id"]
+    
+    already_solved = await repo.is_task_solved(current_user.user_id, quest_id, scene_id)
+    if already_solved:
+        return {
+            "is_correct": True,
+            "points": {"earned": 0, "penalty": 0},
+            "is_quest_completed": False,
+            "message": "Задача уже решена"
+        }
 
     user_answer_value = ""
     is_correct = False
 
     if scene["is_branching"]:
         user_answer_value = _extract_update_value(request.sql_query)
+        target_table = scene.get("expected_result", {}).get("target_table")
+        if target_table:
+            # Check safely via transaction rollback
+            await sql_executor.simulate_update(request.sql_query, allowed_tables=[target_table])
         is_correct = user_answer_value in scene.get("branches", {})
     else:
         if scene.get("expected_result"):
@@ -152,21 +196,34 @@ async def submit_quest_solution(
             is_correct = True
 
     is_quest_completed = False
-
     scoring_service = ScoringService(db)
 
-    if is_correct:
-        result = await repo.submit_answer(
-            user_id=current_user.user_id,
-            quest_id=quest_id,
-            user_answer=user_answer_value,
-            is_correct=is_correct,
-        )
-        await scoring_service.add_points(current_user.user_id, 100)
-        is_quest_completed = result.get("status") == "completed"
-    else:
-        await scoring_service.deduct_points(current_user.user_id, 10)
-    await db.commit()
+    try:
+        if is_correct:
+            result = await repo.submit_answer(
+                user_id=current_user.user_id,
+                quest_id=quest_id,
+                user_answer=user_answer_value,
+                is_correct=is_correct,
+            )
+            await repo.mark_task_solved(current_user.user_id, quest_id, scene_id, request.sql_query)
+            await scoring_service.add_points(current_user.user_id, 100)
+            is_quest_completed = result.get("status") == "completed"
+            
+            # Log event
+            from src.models.user_event import UserEvent
+            event = UserEvent(user_id=current_user.user_id, event_type="quest_task_solved", payload={"quest_id": quest_id, "scene_id": scene_id, "is_correct": True})
+            db.add(event)
+        else:
+            await scoring_service.deduct_points(current_user.user_id, 10)
+            from src.models.user_event import UserEvent
+            event = UserEvent(user_id=current_user.user_id, event_type="quest_task_failed", payload={"quest_id": quest_id, "scene_id": scene_id, "is_correct": False})
+            db.add(event)
+        
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
     return {
         "is_correct": is_correct,
@@ -175,5 +232,5 @@ async def submit_quest_solution(
             "penalty": 0 if is_correct else 10,
         },
         "is_quest_completed": is_quest_completed,
-        "awarded_achievements": [],  # TODO: integrate achievements with quest module
+        "awarded_achievements": [],
     }

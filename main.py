@@ -56,10 +56,11 @@ origins = []
 
 # Add configured frontend URL if set
 if settings.FRONTEND_URL:
-    origins.append(settings.FRONTEND_URL)
+    clean_url = settings.FRONTEND_URL.strip('\"\'')
+    origins.append(clean_url)
     # Allow HTTPS version if HTTP is provided
-    if settings.FRONTEND_URL.startswith("http://"):
-        origins.append(settings.FRONTEND_URL.replace("http://", "https://"))
+    if clean_url.startswith("http://"):
+        origins.append(clean_url.replace("http://", "https://"))
 
 # Add common Docker development URLs
 origins.extend(
@@ -73,12 +74,15 @@ origins.extend(
         "http://backend:8000",
         "http://192.168.146.1:9000",
         "http://localhost:9000",
+        "http://sqlfront.ru",
+        "https://sqlfront.ru"
     ]
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

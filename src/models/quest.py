@@ -66,3 +66,13 @@ class UserQuestProgress(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="quest_progress")
+
+class QuestTaskSolved(Base):
+    __tablename__ = 'quest_tasks_solved'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.user_id'), nullable=False, index=True)
+    quest_id = Column(String, nullable=False, index=True)
+    scene_id = Column(String, nullable=False, index=True)
+    user_query = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+

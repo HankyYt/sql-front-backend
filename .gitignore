@@ -178,9 +178,9 @@ cython_debug/
 ._*
 
 documentation/
-backups/
+
 *.zip
 grafana/
 prometheus.yml
 Dockerfile*
-docker-compose.yml
+

@@ -1,0 +1,54 @@
+services:
+  postgres:
+    container_name: postgres
+    image: timescale/timescaledb:latest-pg15
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_MULTIPLE_DATABASES: users_db,game_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      - ./backups:/backups
+    ports:
+      - "5430:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  backend:
+    container_name: backend
+    build: .
+    image: backend-local
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    container_name: frontend
+    build: ../sql-frontend
+    restart: unless-stopped
+    env_file: ../sql-frontend/.env
+    ports:
+      - "80:9000"
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  dist:
+    driver: local

@@ -47,6 +47,10 @@ class SQLExecutor:
             raise HTTPException(
                 status_code=400, detail=f"Ошибка выполнения: {str(e.orig)}"
             )
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Непредвиденная ошибка базы данных: {str(e)}"
+            )
 
     async def simulate_update(self, sql_query: str, allowed_tables: list[str] = None) -> int:
         """Безопасное выполнение UPDATE с помощью транзакции и отката"""
@@ -66,6 +70,10 @@ class SQLExecutor:
         except StatementError as e:
             raise HTTPException(
                 status_code=400, detail=f"Ошибка выполнения: {str(e.orig)}"
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Непредвиденная ошибка базы данных: {str(e)}"
             )
 
     def _validate_sql(self, sql_query: str, allow_update: bool = False, allowed_tables: list[str] = None, allow_star: bool = False):

@@ -6,15 +6,14 @@ API веб-приложения для решения задач по SQL на �
 
 ### Используемый стек
 
-* FastAPI
-* SQLAlchemy
-* PostgreSQL
-* JWT, PyJWT
-* uvicorn
+* TypeScript
+* React
 
-### Авторы
+### Автор
+* [Гуров Тимофей](https://github.com/HankyYt) - DE, FullStack
+
+### Авторы прототипа
 
 * [Валерия Таранова](https://github.com/tarvarrs) - backend
 * [Екатерина Домашова](https://github.com/katteri) - frontend
 
-[Ссылка](https://sql-front.mirea.ru/) на проект

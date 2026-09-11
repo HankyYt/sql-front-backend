@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, StringConstraints
 
 class UserBase(BaseModel):
     login: str
-    email: EmailStr
+    email: str
     fullname: str
     group: str
 

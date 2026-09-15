@@ -86,7 +86,7 @@ class SQLExecutor:
         if not parsed:
             raise HTTPException(status_code=400, detail="Пустой запрос")
 
-        allowed_keys = ["select", "with"]
+        allowed_keys = ["select", "with", "except", "union", "intersect"]
         if allow_update:
             allowed_keys.append("update")
 

@@ -100,6 +100,7 @@ class TaskWithStatusResponse(BaseModel):
     has_clue2: bool
     previous: dict
     next: dict
+    difficulty: Optional[str] = None
 
 
 class AchievementAward(BaseModel):

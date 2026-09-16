@@ -96,6 +96,13 @@ async def get_task_info(
         payload={"mission_id": mission_id, "task_id": task_id},
     )
 
+    difficulty = None
+    if task.tags:
+        for d in ["easy", "medium", "hard"]:
+            if d in task.tags:
+                difficulty = d
+                break
+
     return {
         "task_id": task.task_id,
         "mission_id": task.mission_id,
@@ -106,6 +113,7 @@ async def get_task_info(
         "has_clue2": bool(has_clue2),
         "previous": {"mission_id": prev_mission_id, "task_id": prev_task_id},
         "next": {"mission_id": next_mission_id, "task_id": next_task_id},
+        "difficulty": difficulty,
     }
 
 

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = get_env("ADMIN_PASSWORD")
     FRONTEND_URL: str = get_env("FRONTEND_URL")
     BACKEND_URL: str = get_env("BACKEND_URL")
-    CORS_ORIGINS: str = get_env("CORS_ORIGINS", "")
+    CORS_ORIGINS: str = get_env("CORS_ORIGINS") or ""
 
     class Config:
         env_file = ".env"

@@ -47,6 +47,8 @@ class TasksCount(BaseModel):
     easy_tasks_total: int
     medium_tasks_total: int
     hard_tasks_total: int
+    mission3_tasks_total: int
+    mission4_tasks_total: int
 
 
 class TaskSolvedCreate(BaseModel):

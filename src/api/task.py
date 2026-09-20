@@ -283,8 +283,12 @@ async def submit_sql_query(
         is_correct, hint = catalog_model.verify(request.sql_query, expected_result)
     else:
         user_result = await sql_executor.execute_sql(request.sql_query)
-        is_correct = user_result.get("columns") == expected_result.get("columns", []) and \
-                     user_result.get("data") == expected_result.get("data", [])
+        user_data = user_result.get("data", [])
+        expected_data = expected_result.get("data", [])
+        try:
+            is_correct = sorted(user_data) == sorted(expected_data)
+        except TypeError:
+            is_correct = user_data == expected_data
     try:
         result = await repo.check_and_reward_task(
             user_id=current_user.user_id,

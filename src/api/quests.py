@@ -189,9 +189,12 @@ async def submit_quest_solution(
         if scene.get("expected_result"):
             user_result = await sql_executor.execute_sql(request.sql_query)
             expected = scene["expected_result"]
-            is_correct = user_result["columns"] == expected.get(
-                "columns", []
-            ) and user_result["data"] == expected.get("data", [])
+            user_data = user_result.get("data", [])
+            expected_data = expected.get("data", [])
+            try:
+                is_correct = sorted(user_data) == sorted(expected_data)
+            except TypeError:
+                is_correct = user_data == expected_data
         else:
             is_correct = True
 

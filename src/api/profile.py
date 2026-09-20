@@ -23,18 +23,25 @@ async def get_my_profile(current_user: User = Depends(get_current_user)):
 async def get_my_progress(
     current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
+    from sqlalchemy import func
+    from src.models.task import Task, TaskSolved
+    
     result = await db.execute(
-        select(UserProgress).where(UserProgress.user_id == current_user.user_id)
+        select(Task.mission_id, func.count(TaskSolved.task_global_id))
+        .join(TaskSolved, Task.task_global_id == TaskSolved.task_global_id)
+        .where(TaskSolved.user_id == current_user.user_id)
+        .group_by(Task.mission_id)
     )
-    progress = result.scalars().first()
-
-    if not progress:
-        return {"easy_solved": 0, "medium_solved": 0, "hard_solved": 0}
-
+    counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    for mission_id, count in result.all():
+        counts[mission_id] = count
+        
     return {
-        "easy_solved": progress.easy_tasks_solved,
-        "medium_solved": progress.medium_tasks_solved,
-        "hard_solved": progress.hard_tasks_solved,
+        "easy_solved": counts[0],
+        "medium_solved": counts[1],
+        "hard_solved": counts[2],
+        "mission3_solved": counts[3],
+        "mission4_solved": counts[4],
     }
 
 

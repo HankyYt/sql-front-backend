@@ -1,0 +1,25 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update and rebuild Docker containers
+        run: |
+          if [ -d "../sql-frontend" ]; then
+            echo "Pulling latest frontend..."
+            git -C ../sql-frontend pull || true
+          fi
+          echo "Rebuilding containers..."
+          docker compose down || docker-compose down
+          docker compose up -d --build || docker-compose up -d --build

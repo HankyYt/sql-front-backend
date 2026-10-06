@@ -24,7 +24,7 @@ class TaskRepository:
         result = await self.session.execute(
             select(Task.mission_id, func.count(Task.task_id)).group_by(Task.mission_id)
         )
-        counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+        counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
         for mission_id, count in result.all():
             counts[mission_id] = count
         return {
@@ -33,6 +33,7 @@ class TaskRepository:
             "hard_tasks_total": counts[2],
             "mission3_tasks_total": counts[3],
             "mission4_tasks_total": counts[4],
+            "mission5_tasks_total": counts[5],
         }
 
     async def get_task_info(self, mission_id: int, task_id: int) -> Task:

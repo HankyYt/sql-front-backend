@@ -32,7 +32,7 @@ async def get_my_progress(
         .where(TaskSolved.user_id == current_user.user_id)
         .group_by(Task.mission_id)
     )
-    counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     for mission_id, count in result.all():
         counts[mission_id] = count
         
@@ -42,6 +42,7 @@ async def get_my_progress(
         "hard_solved": counts[2],
         "mission3_solved": counts[3],
         "mission4_solved": counts[4],
+        "mission5_solved": counts[5],
     }
 
 

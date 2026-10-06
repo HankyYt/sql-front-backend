@@ -30,9 +30,7 @@ EOSQL
     
     echo "Creating analytics tables in $db"
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d "$db" <<-EOSQL
-    DROP TABLE IF EXISTS user_events CASCADE;
-    
-    CREATE TABLE user_events (
+    CREATE TABLE IF NOT EXISTS user_events (
         id BIGSERIAL,
         timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         user_id INTEGER NOT NULL,
@@ -41,8 +39,14 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d "$db" <<-EOSQL
         payload JSONB DEFAULT '{}'::jsonb
     );
     
-    ALTER TABLE user_events 
-    ADD PRIMARY KEY (user_id, task_id, timestamp);
+    DO \$\$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'user_events_pkey'
+        ) THEN
+            ALTER TABLE user_events ADD PRIMARY KEY (user_id, task_id, timestamp);
+        END IF;
+    END \$\$;
     
     DO \$\$
     BEGIN
@@ -84,6 +88,14 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
 EOSQL
 
 restore_backup_if_exists "game_db"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d game_db <<-EOSQL
+    GRANT CREATE, USAGE ON SCHEMA public TO sql_runner;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO sql_runner;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO sql_runner;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO sql_runner;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO sql_runner;
+EOSQL
 
 
 echo "Creating quest_db"

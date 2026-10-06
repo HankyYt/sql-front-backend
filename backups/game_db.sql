@@ -113,6 +113,19 @@ CREATE TABLE public.equipment (
 ALTER TABLE public.equipment OWNER TO postgres;
 
 --
+-- Name: equipment_audit; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.equipment_audit (
+    id SERIAL PRIMARY KEY,
+    item_name character varying NOT NULL,
+    added_at date DEFAULT CURRENT_DATE
+);
+
+
+ALTER TABLE public.equipment_audit OWNER TO postgres;
+
+--
 -- Name: equipment_assignment; Type: TABLE; Schema: public; Owner: postgres
 --
 

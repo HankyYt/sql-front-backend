@@ -31,12 +31,19 @@ sql_executor = SQLExecutor(settings.GAME_DATABASE_URL)
 def _reveal_expected(task):
     """Скрывает реальный ожидаемый результат для модельных задач."""
     payload = task.expected_result
-    if isinstance(payload, dict) and payload.get("mode") == "model":
-        return {
-            "columns": ["Что проверяется:"],
-            "data": [[payload.get("reveal", "")]],
-            "row_count": 1,
-        }
+    if isinstance(payload, dict):
+        if payload.get("mode") == "model":
+            return {
+                "columns": ["Что проверяется:"],
+                "data": [[payload.get("reveal", "")]],
+                "row_count": 1,
+            }
+        elif payload.get("mode") in ("ddl", "plpgsql"):
+            return {
+                "columns": payload.get("columns", ["Результат"]),
+                "data": payload.get("data", [["Успешная проверка DDL"]]),
+                "row_count": len(payload.get("data", [1])),
+            }
     return payload
 
 
@@ -242,11 +249,18 @@ async def run_sql_query(
             task_id=task.task_global_id,
             payload={"mission_id": mission_id, "task_id": task_id},
         )
-        if (task.expected_result or {}).get("mode") == "model":
+        exp_res = task.expected_result or {}
+        if exp_res.get("mode") == "model":
             ok, message = catalog_model.verify(
-                request.sql_query, task.expected_result
+                request.sql_query, exp_res
             )
             return {"columns": ["Результат:"], "data": [[message]], "row_count": 1}
+        elif exp_res.get("mode") in ("ddl", "plpgsql"):
+            test_query = exp_res.get("test_query", "")
+            expect_error = exp_res.get("expect_error", False)
+            return await sql_executor.simulate_ddl(
+                request.sql_query, test_query, expect_error=expect_error
+            )
         return await sql_executor.execute_sql(request.sql_query, allow_star=True)
     except HTTPException as e:
         raise HTTPException(status_code=400, detail=f"Runtime error: {str(e.detail)}")
@@ -281,6 +295,22 @@ async def submit_sql_query(
     user_result = {}
     if expected_result.get("mode") == "model":
         is_correct, hint = catalog_model.verify(request.sql_query, expected_result)
+    elif expected_result.get("mode") in ("ddl", "plpgsql"):
+        test_query = expected_result.get("test_query", "")
+        expect_error = expected_result.get("expect_error", False)
+        user_result = await sql_executor.simulate_ddl(
+            request.sql_query, test_query, expect_error=expect_error
+        )
+        if expect_error:
+            is_correct = user_result.get("error_caught", False)
+            hint = "Триггер успешно заблокировал некорректную операцию" if is_correct else ""
+        else:
+            user_data = user_result.get("data", [])
+            expected_data = expected_result.get("data", [])
+            try:
+                is_correct = sorted(user_data) == sorted(expected_data)
+            except TypeError:
+                is_correct = user_data == expected_data
     else:
         user_result = await sql_executor.execute_sql(request.sql_query)
         user_data = user_result.get("data", [])

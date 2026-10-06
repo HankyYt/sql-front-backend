@@ -8,6 +8,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from contextlib import asynccontextmanager
+import logging
+
 from config import settings
 from src.api.achievement import router as achievement_router
 from src.api.auth import router as auth_router
@@ -17,7 +20,19 @@ from src.api.task import router as task_router
 from src.api.user_activity import router as activity_router
 from src.api.quests import router as quests_router
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Run database migrations on startup
+    try:
+        from src.migrations.runner import run_all_migrations
+        await run_all_migrations()
+    except Exception as e:
+        logging.getLogger("uvicorn.error").error(f"Migration error during startup: {e}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # # Добавьте Prometheus middleware
 # metrics_app = make_asgi_app()

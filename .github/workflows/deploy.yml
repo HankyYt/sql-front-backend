@@ -11,15 +11,22 @@ jobs:
     runs-on: self-hosted
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Update and rebuild Docker containers
+      - name: Deploy Backend and Stack
         run: |
-          if [ -d "../sql-frontend" ]; then
-            echo "Pulling latest frontend..."
-            git -C ../sql-frontend pull || true
+          echo "Updating deployment at /home/admin/sqlfront..."
+          
+          cd /home/admin/sqlfront/sql-backend
+          git fetch origin
+          git reset --hard origin/main
+          
+          if [ -d "/home/admin/sqlfront/sql-frontend" ]; then
+            echo "Updating frontend..."
+            cd /home/admin/sqlfront/sql-frontend
+            git fetch origin
+            git reset --hard origin/main
+            cd /home/admin/sqlfront/sql-backend
           fi
-          echo "Rebuilding containers..."
+          
+          echo "Rebuilding and restarting containers..."
           docker compose down || docker-compose down
           docker compose up -d --build || docker-compose up -d --build
